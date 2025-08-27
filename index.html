@@ -17,6 +17,7 @@
 </head>
 <body>
   <h2>马股 Margin 计算器</h2>
+<p>当前档案：<span id="currentPortfolio">未加载</span></p>
   <table id="stockTable">
     <thead>
       <tr>
@@ -140,6 +141,7 @@ function savePortfolio() {
   let name = prompt("请输入档案名：");
   if (!name) return;
   localStorage.setItem("portfolio_"+name, JSON.stringify(data));
+document.getElementById("currentPortfolio").innerText = name; // 更新显示
   alert("已保存：" + name);
 }
 
@@ -152,6 +154,7 @@ function loadPortfolio() {
   let rows = JSON.parse(data);
   document.getElementById("stockBody").innerHTML = "";
   rows.forEach(r => addRow(r.stock, r.qty, r.price, r.marginRate, r.outstanding));
+document.getElementById("currentPortfolio").innerText = name; // 更新显示
   alert("已加载：" + name);
 }
 
