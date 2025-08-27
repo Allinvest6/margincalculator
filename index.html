@@ -25,6 +25,7 @@
         <th>数量</th>
         <th>股价</th>
         <th>Margin Rate (%)</th>
+<th>Price Capping</th>
         <th>Market Value</th>
         <th>Margin Amount</th>
         <th>Outstanding Amount</th>
@@ -43,9 +44,22 @@
     <tr><td>Total Market Value</td><td id="totalMarketValue" class="result">0</td></tr>
     <tr><td>Total Margin Amount</td><td id="totalMarginAmount" class="result">0</td></tr>
     <tr><td>Total Outstanding</td><td id="totalOutstanding" class="result">0</td></tr>
-    <tr><td>Total Margin Position (%)</td><td id="totalMarginPosition" class="result">0%</td></tr>
-    <tr><td>Available Cash</td><td id="availableCash" class="result">0</td></tr>
+<tr>
+    <td>利率 (%)</td>
+    <td><input type="number" id="interestRate" value="5" style="width:80px;"></td>
+  </tr>
+  <tr>
+    <td>持有天数</td>
+    <td><input type="number" id="interestDays" value="30" style="width:80px;"></td>
+  </tr>
+  <tr>
+    <td>利息金额</td>
+    <td id="interestAmount" class="result">0</td>
+  </tr>
+  <tr><td>Total Margin Position (%)</td><td id="totalMarginPosition" class="result">0%</td></tr>
+  <tr><td>Available Cash</td><td id="availableCash" class="result">0</td></tr>
   </table>
+<button class="btn accent" onclick="calculateInterest()">💰 计算利息</button>
 
   <h3>买入/卖出模拟</h3>
   <table>
@@ -54,6 +68,7 @@
       <td>数量 (买入正数/卖出负数)</td><td><input type="number" id="simQty"></td>
       <td>股价</td><td><input type="number" id="simPrice"></td>
       <td>Margin Rate (%)</td><td><input type="number" id="simMarginRate" value="50"></td>
+<td>Price Capping</td><td><input type="number" id="simPriceCap" placeholder="0表示不限制"></td>
     </tr>
   </table>
   <button class="btn accent" onclick="simulate()">🔍 模拟计算</button>
@@ -68,7 +83,7 @@
   </table>
 
 <script>
-function addRow(stock="", qty=0, price=0, marginRate=50, outstanding=0) {
+function addRow(stock="", qty=0, price=0, marginRate=50, outstanding=0, priceCap=0) {
   let tbody = document.getElementById("stockBody");
   let row = document.createElement("tr");
   row.innerHTML = `
@@ -76,6 +91,7 @@ function addRow(stock="", qty=0, price=0, marginRate=50, outstanding=0) {
     <td><input type="number" value="${qty}"></td>
     <td><input type="number" value="${price}"></td>
     <td><input type="number" value="${marginRate}"></td>
+    <td><input type="number" value="${priceCap}" placeholder="0表示不限制"></td>
     <td class="marketValue">0</td>
     <td class="marginAmount">0</td>
     <td><input type="number" value="${outstanding}"></td>
@@ -83,6 +99,7 @@ function addRow(stock="", qty=0, price=0, marginRate=50, outstanding=0) {
   `;
   tbody.appendChild(row);
 }
+
 
 function calculate() {
   let rows = document.querySelectorAll("#stockBody tr");
@@ -92,10 +109,13 @@ function calculate() {
     let qty = parseFloat(row.cells[1].querySelector("input").value) || 0;
     let price = parseFloat(row.cells[2].querySelector("input").value) || 0;
     let marginRate = parseFloat(row.cells[3].querySelector("input").value) || 0;
-    let outstanding = parseFloat(row.cells[6].querySelector("input").value) || 0;
+    let outstanding = parseFloat(row.cells[7].querySelector("input").value) || 0;
 
-    let marketValue = price * qty;
-    let marginAmount = marketValue * (marginRate / 100);
+    let priceCap = parseFloat(row.cells[4].querySelector("input").value) || 0;
+let effectivePrice = (priceCap > 0 && price > priceCap) ? priceCap : price;
+
+let marketValue = effectivePrice * qty;
+let marginAmount = marketValue * (marginRate / 100);
 
     row.querySelector(".marketValue").innerText = marketValue.toFixed(2);
     row.querySelector(".marginAmount").innerText = marginAmount.toFixed(2);
@@ -131,12 +151,13 @@ function savePortfolio() {
   let data = [];
   rows.forEach(row => {
     data.push({
-      stock: row.cells[0].querySelector("input").value,
-      qty: parseFloat(row.cells[1].querySelector("input").value) || 0,
-      price: parseFloat(row.cells[2].querySelector("input").value) || 0,
-      marginRate: parseFloat(row.cells[3].querySelector("input").value) || 0,
-      outstanding: parseFloat(row.cells[6].querySelector("input").value) || 0
-    });
+  stock: row.cells[0].querySelector("input").value,
+  qty: parseFloat(row.cells[1].querySelector("input").value) || 0,
+  price: parseFloat(row.cells[2].querySelector("input").value) || 0,
+  marginRate: parseFloat(row.cells[3].querySelector("input").value) || 0,
+  priceCap: parseFloat(row.cells[4].querySelector("input").value) || 0, // 新增
+  outstanding: parseFloat(row.cells[7].querySelector("input").value) || 0
+});
   });
   let name = prompt("请输入档案名：");
   if (!name) return;
@@ -153,22 +174,24 @@ function loadPortfolio() {
   if (!data) { alert("未找到该档案"); return; }
   let rows = JSON.parse(data);
   document.getElementById("stockBody").innerHTML = "";
-  rows.forEach(r => addRow(r.stock, r.qty, r.price, r.marginRate, r.outstanding));
+  rows.forEach(r => addRow(r.stock, r.qty, r.price, r.marginRate, r.outstanding, r.priceCap));
 document.getElementById("currentPortfolio").innerText = name; // 更新显示
   alert("已加载：" + name);
 }
 
 // 🔹 模拟买入/卖出
 function simulate() {
+calculate(); // ✅ 确保总和最新
   let qty = parseFloat(document.getElementById("simQty").value) || 0;
   let price = parseFloat(document.getElementById("simPrice").value) || 0;
   let marginRate = parseFloat(document.getElementById("simMarginRate").value) || 0;
-
+let priceCap = parseFloat(document.getElementById("simPriceCap").value) || 0; // 新增
+let effectivePrice = (priceCap > 0 && price > priceCap) ? priceCap : price;   // 新增
   let totalMarketValue = parseFloat(document.getElementById("totalMarketValue").innerText) || 0;
   let totalMarginAmount = parseFloat(document.getElementById("totalMarginAmount").innerText) || 0;
   let totalOutstanding = parseFloat(document.getElementById("totalOutstanding").innerText) || 0;
 
-  let tradeValue = qty * price;
+  let tradeValue = qty * effectivePrice;
   let tradeMargin = tradeValue * (marginRate / 100);
   let newOutstanding = totalOutstanding + tradeValue;
   let newMarketValue = totalMarketValue + tradeValue;
@@ -190,6 +213,21 @@ function simulate() {
   document.getElementById("simMarginPosition").innerText = newMarginPosition.toFixed(2) + "%";
   document.getElementById("simAvailableCash").innerText = newAvailableCash.toFixed(2);
 }
+function calculateInterest() {
+  // 读取当前组合总 Outstanding
+  let totalOutstanding = parseFloat(document.getElementById("totalOutstanding").innerText) || 0;
+
+  // 读取用户输入的利率和天数
+  let rate = parseFloat(document.getElementById("interestRate").value) || 0;
+  let days = parseFloat(document.getElementById("interestDays").value) || 0;
+
+  // 利息计算公式：Outstanding * 利率(%) * 天数 / 365
+  let interest = totalOutstanding * rate / 100 * (days / 365);
+
+  // 更新显示
+  document.getElementById("interestAmount").innerText = interest.toFixed(2);
+}
+
 </script>
 </body>
 </html>
